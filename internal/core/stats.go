@@ -14,7 +14,7 @@ func CalculateUptime(minutes map[int64]struct{}, firstMinute, lastMinute int64) 
 		return 100.0
 	}
 	observedMinutes := int64(len(minutes))
-	totalWindow := (lastMinute - firstMinute) + 1 // Inclusive range
+	totalWindow := lastMinute - firstMinute // Number of minutes between first and last
 	return (float64(observedMinutes) / float64(totalWindow)) * 100.0
 }
 
