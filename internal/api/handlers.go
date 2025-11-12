@@ -1,13 +1,15 @@
 package api
 
 import (
+	"bytes"
 	"device-fleet-monitoring/internal/storage"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
+	"time"
 )
 
 // Handlers holds dependencies for HTTP handlers
@@ -25,7 +27,7 @@ func NewHandlers(store storage.Store) *Handlers {
 // HandleHeartbeat handles POST /devices/{device_id}/heartbeat
 func (h *Handlers) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	// Parse device_id from URL path
-	deviceID := extractDeviceID(r.URL.Path, "/devices/", "/heartbeat")
+	deviceID := extractDeviceID(r.URL.Path, "/api/v1/devices/", "/heartbeat")
 	if deviceID == "" {
 		writeError(w, http.StatusBadRequest, "invalid device_id in path")
 		log.Printf("ERROR: invalid device_id in path, endpoint=/heartbeat")
@@ -33,8 +35,11 @@ func (h *Handlers) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse and validate JSON body
+	bodyBytes, _ := io.ReadAll(r.Body)
+	log.Printf("DEBUG: raw request body, device_id=%s, endpoint=/heartbeat, body=%s", deviceID, string(bodyBytes))
+	
 	var req HeartbeatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON payload")
 		log.Printf("ERROR: failed to decode JSON, device_id=%s, endpoint=/heartbeat, error=%v", deviceID, err)
 		return
@@ -48,7 +53,7 @@ func (h *Handlers) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call store.AddHeartbeat
-	if err := h.store.AddHeartbeat(r.Context(), deviceID, req.SentAt); err != nil {
+	if err := h.store.AddHeartbeat(r.Context(), deviceID, req.SentAt.Time); err != nil {
 		if errors.Is(err, storage.ErrDeviceNotFound) {
 			writeError(w, http.StatusNotFound, "device not found")
 			log.Printf("ERROR: device not found, device_id=%s, endpoint=/heartbeat, error=%v", deviceID, err)
@@ -67,7 +72,7 @@ func (h *Handlers) HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 // HandleStatsPost handles POST /devices/{device_id}/stats
 func (h *Handlers) HandleStatsPost(w http.ResponseWriter, r *http.Request) {
 	// Parse device_id from URL path
-	deviceID := extractDeviceID(r.URL.Path, "/devices/", "/stats")
+	deviceID := extractDeviceID(r.URL.Path, "/api/v1/devices/", "/stats")
 	if deviceID == "" {
 		writeError(w, http.StatusBadRequest, "invalid device_id in path")
 		log.Printf("ERROR: invalid device_id in path, endpoint=/stats")
@@ -75,17 +80,14 @@ func (h *Handlers) HandleStatsPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse and validate JSON body
+	bodyBytes, _ := io.ReadAll(r.Body)
+	log.Printf("DEBUG: raw request body, device_id=%s, endpoint=/stats, body=%s", deviceID, string(bodyBytes))
+	
 	var req StatsPostRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(bodyBytes))
+	if err := decoder.Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON payload")
 		log.Printf("ERROR: failed to decode JSON, device_id=%s, endpoint=/stats, error=%v", deviceID, err)
-		return
-	}
-
-	// Validate sent_at is valid
-	if req.SentAt.IsZero() {
-		writeError(w, http.StatusBadRequest, "invalid sent_at timestamp")
-		log.Printf("ERROR: invalid sent_at timestamp, device_id=%s, endpoint=/stats", deviceID)
 		return
 	}
 
@@ -97,7 +99,7 @@ func (h *Handlers) HandleStatsPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call store.AddUpload
-	if err := h.store.AddUpload(r.Context(), deviceID, req.SentAt, req.UploadTime); err != nil {
+	if err := h.store.AddUpload(r.Context(), deviceID, req.SentAt.Time, req.UploadTime); err != nil{
 		if errors.Is(err, storage.ErrDeviceNotFound) {
 			writeError(w, http.StatusNotFound, "device not found")
 			log.Printf("ERROR: device not found, device_id=%s, endpoint=/stats, error=%v", deviceID, err)
@@ -116,7 +118,7 @@ func (h *Handlers) HandleStatsPost(w http.ResponseWriter, r *http.Request) {
 // HandleStatsGet handles GET /devices/{device_id}/stats
 func (h *Handlers) HandleStatsGet(w http.ResponseWriter, r *http.Request) {
 	// Parse device_id from URL path
-	deviceID := extractDeviceID(r.URL.Path, "/devices/", "/stats")
+	deviceID := extractDeviceID(r.URL.Path, "/api/v1/devices/", "/stats")
 	if deviceID == "" {
 		writeError(w, http.StatusBadRequest, "invalid device_id in path")
 		log.Printf("ERROR: invalid device_id in path, endpoint=/stats")
@@ -136,8 +138,8 @@ func (h *Handlers) HandleStatsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format avg_upload_time as numeric string
-	avgUploadTimeStr := formatFloat(avgUpload)
+	// Format avg_upload_time as duration string (input is in nanoseconds)
+	avgUploadTimeStr := formatDuration(avgUpload)
 
 	// Return 200 with JSON response
 	w.Header().Set("Content-Type", "application/json")
@@ -169,7 +171,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	json.NewEncoder(w).Encode(ErrorResponse{Msg: message})
 }
 
-// formatFloat formats a float64 as a numeric string with full precision
-func formatFloat(f float64) string {
-	return strconv.FormatFloat(f, 'f', -1, 64)
+// formatDuration formats a float64 (nanoseconds) as a Go duration string
+func formatDuration(nanoseconds float64) string {
+	if nanoseconds == 0 {
+		return "0s"
+	}
+	duration := time.Duration(nanoseconds)
+	return duration.String()
 }
