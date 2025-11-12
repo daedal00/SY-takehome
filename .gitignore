@@ -1,0 +1,33 @@
+# Kiro IDE
+.kiro/
+
+# Binaries
+device-simulator-mac-arm64
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Challenge materials
+*.pdf
+devices.csv
+openapi.json
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
