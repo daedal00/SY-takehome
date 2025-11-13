@@ -52,7 +52,7 @@ func TestHandleHeartbeat_Success(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":"2024-01-01T12:00:00Z"}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleHeartbeat(w, req)
@@ -72,7 +72,7 @@ func TestHandleHeartbeat_DeviceNotFound(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":"2024-01-01T12:00:00Z"}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/unknown-device/heartbeat", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/unknown-device/heartbeat", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleHeartbeat(w, req)
@@ -96,7 +96,7 @@ func TestHandleHeartbeat_MalformedJSON(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":"invalid`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleHeartbeat(w, req)
@@ -112,7 +112,7 @@ func TestHandleHeartbeat_InvalidSentAt(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":""}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleHeartbeat(w, req)
@@ -138,7 +138,7 @@ func TestHandleStatsPost_Success(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":"2024-01-01T12:00:00Z","upload_time":1500}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/stats", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/stats", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleStatsPost(w, req)
@@ -158,7 +158,7 @@ func TestHandleStatsPost_DeviceNotFound(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":"2024-01-01T12:00:00Z","upload_time":1500}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/unknown-device/stats", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/unknown-device/stats", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleStatsPost(w, req)
@@ -174,7 +174,7 @@ func TestHandleStatsPost_NegativeUploadTime(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":"2024-01-01T12:00:00Z","upload_time":-100}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/stats", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/stats", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleStatsPost(w, req)
@@ -198,7 +198,7 @@ func TestHandleStatsPost_InvalidSentAt(t *testing.T) {
 	handlers := NewHandlers(store)
 
 	reqBody := `{"sent_at":"","upload_time":1500}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/stats", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/stats", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 
 	handlers.HandleStatsPost(w, req)
@@ -215,12 +215,13 @@ func TestHandleStatsGet_Success(t *testing.T) {
 			if deviceID != "test-device" {
 				t.Errorf("expected deviceID 'test-device', got '%s'", deviceID)
 			}
-			return 95.5, 1234.56, nil
+			// Return nanoseconds (187893379134 ns = ~3m7.893s)
+			return 95.5, 187893379134, nil
 		},
 	}
 	handlers := NewHandlers(store)
 
-	req := httptest.NewRequest(http.MethodGet, "/devices/test-device/stats", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/devices/test-device/stats", nil)
 	w := httptest.NewRecorder()
 
 	handlers.HandleStatsGet(w, req)
@@ -237,8 +238,9 @@ func TestHandleStatsGet_Success(t *testing.T) {
 	if resp.Uptime != 95.5 {
 		t.Errorf("expected uptime 95.5, got %f", resp.Uptime)
 	}
-	if resp.AvgUploadTime != "1234.56" {
-		t.Errorf("expected avg_upload_time '1234.56', got '%s'", resp.AvgUploadTime)
+	// Check that avg_upload_time is formatted as a duration string
+	if resp.AvgUploadTime != "3m7.893379134s" {
+		t.Errorf("expected avg_upload_time '3m7.893379134s', got '%s'", resp.AvgUploadTime)
 	}
 }
 
@@ -251,7 +253,7 @@ func TestHandleStatsGet_DeviceNotFound(t *testing.T) {
 	}
 	handlers := NewHandlers(store)
 
-	req := httptest.NewRequest(http.MethodGet, "/devices/unknown-device/stats", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/devices/unknown-device/stats", nil)
 	w := httptest.NewRecorder()
 
 	handlers.HandleStatsGet(w, req)
@@ -269,7 +271,7 @@ func TestIntegration_HeartbeatThenGetStats(t *testing.T) {
 
 	// Send heartbeat
 	reqBody := `{"sent_at":"2024-01-01T12:00:00Z"}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/heartbeat", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 	handlers.HandleHeartbeat(w, req)
 
@@ -278,7 +280,7 @@ func TestIntegration_HeartbeatThenGetStats(t *testing.T) {
 	}
 
 	// Get stats
-	req = httptest.NewRequest(http.MethodGet, "/devices/test-device/stats", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/devices/test-device/stats", nil)
 	w = httptest.NewRecorder()
 	handlers.HandleStatsGet(w, req)
 
@@ -304,7 +306,7 @@ func TestIntegration_StatsPostThenGetStats(t *testing.T) {
 
 	// Send upload stats
 	reqBody := `{"sent_at":"2024-01-01T12:00:00Z","upload_time":2500}`
-	req := httptest.NewRequest(http.MethodPost, "/devices/test-device/stats", bytes.NewBufferString(reqBody))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/test-device/stats", bytes.NewBufferString(reqBody))
 	w := httptest.NewRecorder()
 	handlers.HandleStatsPost(w, req)
 
@@ -313,7 +315,7 @@ func TestIntegration_StatsPostThenGetStats(t *testing.T) {
 	}
 
 	// Get stats
-	req = httptest.NewRequest(http.MethodGet, "/devices/test-device/stats", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/devices/test-device/stats", nil)
 	w = httptest.NewRecorder()
 	handlers.HandleStatsGet(w, req)
 
