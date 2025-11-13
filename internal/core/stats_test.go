@@ -31,28 +31,28 @@ func TestCalculateUptime(t *testing.T) {
 			minutes:     map[int64]struct{}{0: {}, 1: {}, 2: {}},
 			firstMinute: 0,
 			lastMinute:  2,
-			want:        100.0,
+			want:        150.0, // 3 minutes / 2 span = 150%
 		},
 		{
-			name:        "sparse minutes - 60% uptime",
+			name:        "sparse minutes - 75% uptime",
 			minutes:     map[int64]struct{}{0: {}, 2: {}, 4: {}},
 			firstMinute: 0,
 			lastMinute:  4,
-			want:        60.0,
+			want:        75.0, // 3 minutes / 4 span = 75%
 		},
 		{
-			name:        "sparse minutes - 50% uptime",
+			name:        "sparse minutes - 75% uptime",
 			minutes:     map[int64]struct{}{10: {}, 12: {}, 14: {}},
 			firstMinute: 10,
 			lastMinute:  14,
-			want:        60.0,
+			want:        75.0, // 3 minutes / 4 span = 75%
 		},
 		{
 			name:        "two minutes at edges",
 			minutes:     map[int64]struct{}{0: {}, 10: {}},
 			firstMinute: 0,
 			lastMinute:  10,
-			want:        18.181818181818183,
+			want:        20.0, // 2 minutes / 10 span = 20%
 		},
 	}
 
