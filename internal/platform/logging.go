@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// Logger provides structured logging with key-value pairs
+// Logger is intentionally minimal: stdlib loggers + key/value formatting keep the code dependency-free
+// while still demonstrating structured logging techniques during the interview.
 type Logger struct {
 	infoLogger  *log.Logger
 	errorLogger *log.Logger
@@ -31,7 +32,7 @@ func (l *Logger) Error(msg string, keysAndValues ...interface{}) {
 	l.errorLogger.Println(formatMessage(msg, keysAndValues...))
 }
 
-// formatMessage formats a message with key-value pairs
+// formatMessage mimics slog's value formatting so swapping in a real structured logger later is trivial.
 func formatMessage(msg string, keysAndValues ...interface{}) string {
 	var sb strings.Builder
 	sb.WriteString(msg)

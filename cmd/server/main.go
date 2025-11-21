@@ -12,7 +12,9 @@ import (
 )
 
 func main() {
-	// Define command-line flags
+    // main bootstraps the HTTP server: parse config, wire dependencies, and block in ListenAndServe.
+
+    // Define command-line flags (also overridable via env vars for 12-factor friendliness).
 	port := flag.String("port", getEnv("PORT", "6733"), "HTTP server port")
 	devicesCSV := flag.String("devices", getEnv("DEVICES_CSV", "devices.csv"), "Path to devices CSV file")
 	flag.Parse()
@@ -20,7 +22,7 @@ func main() {
 	// Initialize logger
 	logger := platform.NewLogger()
 
-	// Load device IDs from CSV
+    // Load device IDs from CSV (fail fast if roster can't be trusted).
 	deviceIDs, err := loadDeviceIDs(*devicesCSV)
 	if err != nil {
 		logger.Error("failed to load devices from CSV",
@@ -33,7 +35,7 @@ func main() {
 		"file", *devicesCSV,
 		"count", len(deviceIDs))
 
-	// Create memory store with loaded device IDs
+    // Create memory store with loaded device IDs
 	store := storage.NewMemoryStore(deviceIDs)
 
 	// Create handlers with store
@@ -46,7 +48,7 @@ func main() {
 		DeviceCount: len(deviceIDs),
 	})
 
-	// Start HTTP server
+    // Start HTTP server (blocking call – if it returns, it's an error path).
 	addr := ":" + *port
 	logger.Info("starting server",
 		"port", *port,
@@ -59,7 +61,7 @@ func main() {
 	}
 }
 
-// getEnv retrieves an environment variable or returns a default value
+// getEnv wraps os.Getenv so flags/env vars work the same whether running locally or in containers.
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -67,7 +69,7 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// loadDeviceIDs reads device IDs from a CSV file
+// loadDeviceIDs reads device IDs from a CSV file and enforces the contract expected by the store.
 func loadDeviceIDs(filename string) ([]string, error) {
 	// Open CSV file
 	file, err := os.Open(filename)

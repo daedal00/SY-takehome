@@ -16,7 +16,8 @@ type RouterConfig struct {
 	DeviceCount int
 }
 
-// NewRouter creates and configures an HTTP router with middleware using the stdlib http.ServeMux
+// NewRouter wires the HTTP surface area without external frameworks so the interviewers can see
+// exactly how requests are dispatched and how middleware is layered.
 // Design goals:
 // - Keep routing simple and dependency-free for this small API surface
 // - Centralize route wiring in one place
@@ -25,14 +26,15 @@ func NewRouter(config RouterConfig) http.Handler {
 	// Use Go's standard multiplexer. For a small numer of routes, http.serveMux is more than enough
 	mux := http.NewServeMux()
 
-	// Wrap each core handlers with logging middleware so that request method/path/status/duration are logged consistently
-	// This is simlar to how chi/gin middleware would behave but implemented manually to avoid extra dependencies
+    // Wrap handlers with logging middleware so we still get framework-like observability without
+    // paying the dependency cost.
 	heartbeatHandler := loggingMiddleware(config.Logger, http.HandlerFunc(config.Handlers.HandleHeartbeat))
 	statsPostHandler := loggingMiddleware(config.Logger, http.HandlerFunc(config.Handlers.HandleStatsPost))
 	statsGetHandler := loggingMiddleware(config.Logger, http.HandlerFunc(config.Handlers.HandleStatsGet))
 
-	// Register a single prefix route for all device-related endpoints.
-	// The innter handler does manual routing based on method and path suffix
+    // Register a single prefix route for all device-related endpoints so we can keep all
+    // device-aware routing logic in one closure instead of scattering mux.HandleFunc calls.
+    // The inner handler does manual routing based on method and path suffix
 	// Routes covered here:
 	// POST /api/v1/devices/{id}/heartbeat
 	// POST /api/v1/devices/{id}/stats
@@ -95,9 +97,10 @@ func NewRouter(config RouterConfig) http.Handler {
 	return mux
 }
 
-// loggingMiddleware logs HTTP requests after than handler has been executed.
-// Wraps the next handler, records the start time, captures the status code, and then logs method, path, status, and durationg using the injected logger.
-// This is essentially a small, custom version of what you'd get from a framework middleware, but using only the stdlib http.Handler interface
+// loggingMiddleware is the hand-rolled equivalent of chi/gin request logging so we can explain the
+// moving parts in an interview without referencing a black-box dependency.
+// Wraps the next handler, records the start time, captures the status code, and then logs method,
+// path, status, and duration using the injected logger.
 func loggingMiddleware(logger *Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -122,8 +125,8 @@ func loggingMiddleware(logger *Logger, next http.Handler) http.Handler {
 	})
 }
 
-// responseWriter wraps http.ResponseWriter to capture HTTP status code.
-// Many handlers just call WriteHeader, or sometimes only Write, so we intercept WriteHeader to record the status for logging
+// responseWriter mirrors the common middleware pattern of decorating http.ResponseWriter so we can
+// capture the status code even when handlers only call Write().
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int

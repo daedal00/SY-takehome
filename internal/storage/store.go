@@ -12,7 +12,8 @@ var (
 	ErrInvalidInput   = errors.New("invalid input")
 )
 
-// Store defines the interface for device telemetry storage operations
+// Store defines the minimal persistence surface so we can swap implementations (memory, Postgres,
+// TSDB) without changing handler code.
 type Store interface {
 	// AddHeartbeat records a heartbeat for a device at the given timestamp
 	AddHeartbeat(ctx context.Context, deviceID string, sentAt time.Time) error

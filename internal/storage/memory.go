@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// DeviceAgg holds aggregate data for a single device
+// DeviceAgg holds aggregate data for a single device; locks live per device so requests for
+// different devices rarely contend.
 type DeviceAgg struct {
 	mu sync.RWMutex
 
@@ -21,13 +22,14 @@ type DeviceAgg struct {
 	uploadSum   float64
 }
 
-// memoryStore implements the Store interface with in-memory storage
+// memoryStore is the interview-friendly implementation of Store – easy to reason about and
+// intentionally dependency-free.
 type memoryStore struct {
 	mu      sync.RWMutex
 	devices map[string]*DeviceAgg
 }
 
-// NewMemoryStore creates a new in-memory store initialized with the given device IDs
+// NewMemoryStore pre-seeds every known device so runtime lookups can reject unknown IDs immediately.
 func NewMemoryStore(deviceIDs []string) *memoryStore {
 	devices := make(map[string]*DeviceAgg, len(deviceIDs))
 	for _, id := range deviceIDs {
@@ -40,9 +42,9 @@ func NewMemoryStore(deviceIDs []string) *memoryStore {
 	}
 }
 
-// AddHeartbeat records a heartbeat for a device at the given timestamp
+// AddHeartbeat upserts minute buckets and advances the observation window for uptime calculations.
 func (m *memoryStore) AddHeartbeat(ctx context.Context, deviceID string, sentAt time.Time) error {
-	// Convert sentAt to minute bucket
+    // Convert sentAt to minute bucket (idempotent per minute, keeps memory bounded).
 	minute := sentAt.Unix() / 60
 
 	// Acquire device with read lock on map
@@ -58,7 +60,7 @@ func (m *memoryStore) AddHeartbeat(ctx context.Context, deviceID string, sentAt 
 	device.mu.Lock()
 	defer device.mu.Unlock()
 
-	// Update firstMinute and lastMinute
+    // Update first/last minute so uptime windows only span observed data.
 	if len(device.minutes) == 0 {
 		device.firstMinute = minute
 		device.lastMinute = minute
@@ -71,13 +73,13 @@ func (m *memoryStore) AddHeartbeat(ctx context.Context, deviceID string, sentAt 
 		}
 	}
 
-	// Add minute to set (idempotent)
+    // Add minute to set (idempotent)
 	device.minutes[minute] = struct{}{}
 
 	return nil
 }
 
-// AddUpload records an upload time measurement for a device
+// AddUpload tracks uploads via incremental average (sum+count) to avoid storing every datapoint.
 func (m *memoryStore) AddUpload(ctx context.Context, deviceID string, sentAt time.Time, uploadTime int) error {
 	// Acquire device with read lock on map
 	m.mu.RLock()
@@ -92,14 +94,14 @@ func (m *memoryStore) AddUpload(ctx context.Context, deviceID string, sentAt tim
 	device.mu.Lock()
 	defer device.mu.Unlock()
 
-	// Update incremental average
+    // Update incremental average
 	device.uploadCount++
 	device.uploadSum += float64(uploadTime)
 
 	return nil
 }
 
-// GetStats retrieves computed statistics for a device
+// GetStats reads aggregate fields under read locks and defers to pure functions for the math.
 func (m *memoryStore) GetStats(ctx context.Context, deviceID string) (uptime float64, avgUpload float64, err error) {
 	// Acquire device with read lock on map
 	m.mu.RLock()

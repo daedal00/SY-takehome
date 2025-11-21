@@ -1,6 +1,7 @@
 package core
 
-// CalculateUptime computes uptime percentage from minute bucket data.
+// CalculateUptime isolates the uptime math so it can be unit-tested and discussed without touching
+// HTTP/storage layers.
 // Returns the percentage of minutes with heartbeats within the observation window.
 // Edge cases:
 // - No heartbeats: returns 0.0
@@ -18,7 +19,8 @@ func CalculateUptime(minutes map[int64]struct{}, firstMinute, lastMinute int64) 
 	return (float64(observedMinutes) / float64(totalWindow)) * 100.0
 }
 
-// CalculateAverageUpload computes the average upload time from sum and count.
+// CalculateAverageUpload performs the incremental average math (sum/count) and can later be swapped
+// for more advanced statistics without touching storage handlers.
 // Returns 0.0 if no uploads have been recorded.
 func CalculateAverageUpload(uploadSum float64, uploadCount int64) float64 {
 	if uploadCount == 0 {

@@ -6,7 +6,8 @@ import (
 	"time"
 )
 
-// FlexTime is a custom time type that can unmarshal from both RFC3339 strings and Unix timestamps
+// FlexTime demonstrates resiliency: devices can send either RFC3339 strings or Unix timestamps and we
+// still parse them into a single canonical time.Time for downstream code.
 type FlexTime struct {
 	time.Time
 }
@@ -34,24 +35,24 @@ func (ft *FlexTime) UnmarshalJSON(b []byte) error {
 	return fmt.Errorf("sent_at must be either Unix timestamp or RFC3339 string")
 }
 
-// HeartbeatRequest represents the payload for POST /devices/{device_id}/heartbeat
+// HeartbeatRequest mirrors the OpenAPI schema for heartbeat ingest.
 type HeartbeatRequest struct {
 	SentAt FlexTime `json:"sent_at"`
 }
 
-// StatsPostRequest represents the payload for POST /devices/{device_id}/stats
+// StatsPostRequest mirrors the stats ingest payload.
 type StatsPostRequest struct {
 	SentAt     FlexTime `json:"sent_at"`
 	UploadTime int      `json:"upload_time"`
 }
 
-// StatsGetResponse represents the response for GET /devices/{device_id}/stats
+// StatsGetResponse is serialized back to the client exactly as described in the spec.
 type StatsGetResponse struct {
 	Uptime        float64 `json:"uptime"`
 	AvgUploadTime string  `json:"avg_upload_time"`
 }
 
-// ErrorResponse represents error responses for all endpoints
+// ErrorResponse ensures 4xx/5xx replies stay uniform (single msg field).
 type ErrorResponse struct {
 	Msg string `json:"msg"`
 }
